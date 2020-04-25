@@ -228,18 +228,47 @@ def create_loss_v04(target,outputs):
     # ]
     #return tf.stack(losss) # target [0,0,1] output=logits not probability
 
+def create_loss_v04_1(target,outputs):
+    eps=0.0000001
+    node_y=target.nodes #[n,1]
+    node_y=node_y[:,0]
+    #m1=node_y > 0
+    #nonzero=tf.dtypes.cast(m1, tf.float32)#[n,1]
+    #nonzero_num=tf.reduce_sum(nonzero)#非零个数
+    nodey_onehot=tf.one_hot(node_y,depth=ynode_vocab) #[n,vocabsz]
+    lossll=[]
+    for pred in outputs:
+        node_pred=pred.nodes #[n,vocabsz]
+        node_pred=tf.nn.log_softmax(node_pred,axis=1) #-> probability -> log(prob)
+        node_pred=node_pred*nodey_onehot
+        node_pred=tf.reduce_sum(node_pred,axis=-1) #->[n,] get maxProbability
+        #loss=-tf.reduce_sum(node_pred*nonzero)/(eps+nonzero_num)
+        loss = -tf.reduce_mean(node_pred) # sum
+        lossll.append(loss)
+        #tf.compat.v1.losses.softmax_cross_entropy(nodey_onehot, node_pred)
+    return lossll
+
+
 
 def create_acc(target,outputs):
+    ### 不算PAD ID=0的值
     pred=outputs[-1]
     node_y = target.nodes[:,0]
     pred=tf.argmax(pred.nodes,axis=-1) #[n,]
-    cnt,correct_cnt=0,0
+    cnt_y,correct_cnt,cnt_p=0,0,0#非零的 数量
+    ###
+
+    ###
     for ni,y in enumerate(node_y):
-        if y.numpy()==0:
-            continue # PAD 不计算在准确里
-        if pred[ni]==y:correct_cnt+=1
-        cnt+=1
-    return correct_cnt/(0.00001+cnt)
+        ##
+        predi=pred[ni]
+        #
+        if predi==y and predi.numpy()!=0:correct_cnt+=1 # pred=y并且不等于 0 PAD
+        #
+        if y.numpy()!=0:cnt_y+=1# y有几个非零
+        if predi.numpy()!=0:cnt_p+=1 #pred 有几个非零
+        # PAD 不计算在准确里
+    return correct_cnt/(0.00001+cnt_p),correct_cnt/(0.00001+cnt_y)
 
 
 
@@ -271,7 +300,7 @@ def update_step(inputs_tr, targets_tr):
   with tf.GradientTape() as tape:
     outputs_tr = model(inputs_tr, num_processing_steps_tr)
     # Loss.
-    loss_tr = create_loss_v04(targets_tr, outputs_tr)
+    loss_tr = create_loss_v04_1(targets_tr, outputs_tr)
     loss_tr = tf.math.reduce_sum(loss_tr) / num_processing_steps_tr
 
   gradients = tape.gradient(loss_tr, model.trainable_variables)
@@ -288,7 +317,7 @@ def update_step(inputs_tr, targets_tr):
 #   ax.grid(False)
 
 
-epoch=10
+epoch=30
 gene=create_data_v04() # gtx gty
 num_processing_steps_tr =  10
 
@@ -304,9 +333,9 @@ for gtx,gty in gene:
     break
 outputs_tr = model(gtx, num_processing_steps_tr)
 # Loss.
-loss_tr = create_loss_v04(gty, outputs_tr)
+loss_tr = create_loss_v04_1(gty, outputs_tr)
 # acc
-acc=create_acc(gty,outputs_tr)
+acc,recall=create_acc(gty,outputs_tr)
 print ('')
 
 #################
@@ -317,8 +346,8 @@ for gtx,gty in gene:
     step+=1
     if step%10==0:
 
-        acc=create_acc(gty,out)
-        print(' step %d loss %f acc %f'%(step, loss,acc))
+        acc,recall=create_acc(gty,out)
+        print(' step %d loss %f acc %f recall %f'%(step, loss,acc,recall))
 
 
 
@@ -334,245 +363,3 @@ for gtx,gty in gene:
 
 
 
-
-
-# num_elements_min_max = (5, 10)
-#
-# inputs, targets, sort_indices, ranks = create_data(
-#     1, num_elements_min_max)
-#
-# inputs_nodes = inputs.nodes.numpy() #[7,1]
-# targets = utils_tf.nest_to_numpy(targets)
-# sort_indices_nodes = sort_indices.nodes.numpy()
-# ranks_nodes = ranks.nodes.numpy()
-#
-# sort_indices = np.squeeze(sort_indices_nodes).astype(int)
-#
-# # # Plot sort linked lists.
-# # # The matrix plots show each element from the sorted list (rows), and which
-# # # element they link to as next largest (columns). Ground truth is a diagonal
-# # # offset toward the upper-right by one.
-# # fig = plt.figure(1, figsize=(4, 4))
-# # fig.clf()
-# # ax = fig.add_subplot(1, 1, 1)
-# # plot_linked_list(ax,
-# #                  utils_np.graphs_tuple_to_networkxs(targets)[0], sort_indices)
-# # ax.set_title("Element-to-element links for sorted elements")
-# # ax.set_axis_off()
-# #
-# # fig = plt.figure(2, figsize=(10, 2))
-# # fig.clf()
-# # ax1 = fig.add_subplot(1, 3, 1)
-# # ax2 = fig.add_subplot(1, 3, 2)
-# # ax3 = fig.add_subplot(1, 3, 3)
-# #
-# # i = 0
-# # num_elements = ranks_nodes.shape[0]
-# # inputs = np.squeeze(inputs_nodes)
-# # ranks = np.squeeze(ranks_nodes * (num_elements - 1.0)).astype(int)
-# # x = np.arange(inputs.shape[0])
-# #
-# # ax1.set_title("Inputs")
-# # ax1.barh(x, inputs, color="b")
-# # ax1.set_xlim(-0.01, 1.01)
-# #
-# # ax2.set_title("Sorted")
-# # ax2.barh(x, inputs[sort_indices], color="k")
-# # ax2.set_xlim(-0.01, 1.01)
-# #
-# # ax3.set_title("Ranks")
-# # ax3.barh(x, ranks, color="r")
-# # _ = ax3.set_xlim(0, len(ranks) + 0.5)
-#
-#
-#
-# #@title Set up model training and evaluation  { form-width: "30%" }
-#
-# # The model we explore includes three components:
-# # - An "Encoder" graph net, which independently encodes the edge, node, and
-# #   global attributes (does not compute relations etc.).
-# # - A "Core" graph net, which performs N rounds of processing (message-passing)
-# #   steps. The input to the Core is the concatenation of the Encoder's output
-# #   and the previous output of the Core (labeled "Hidden(t)" below, where "t" is
-# #   the processing step).
-# # - A "Decoder" graph net, which independently decodes the edge, node, and
-# #   global attributes (does not compute relations etc.), on each
-# #   message-passing step.
-# #
-# #                     Hidden(t)   Hidden(t+1)
-# #                        |            ^
-# #           *---------*  |  *------*  |  *---------*
-# #           |         |  |  |      |  |  |         |
-# # Input --->| Encoder |  *->| Core |--*->| Decoder |---> Output(t)
-# #           |         |---->|      |     |         |
-# #           *---------*     *------*     *---------*
-# #
-# # The model is trained by supervised learning. Input graphs are procedurally
-# # generated, and output graphs have the same structure with the nodes and edges
-# # of the linked list labeled (using 2-element 1-hot vectors). The target
-# # labels the node corresponding to the lowest value in the list, and labels each
-# # which represents the connection between neighboring values in the sorted
-# # list.
-# #
-# # The training loss is computed on the output of each processing step. The
-# # reason for this is to encourage the model to try to solve the problem in as
-# # few steps as possible. It also helps make the output of intermediate steps
-# # more interpretable.
-# #
-# # There's no need for a separate evaluate dataset because the inputs are
-# # never repeated, so the training loss is the measure of performance on graphs
-# # from the input distribution.
-# #
-# # We also evaluate how well the models generalize to lists which are up to
-# # twice as large as those on which it was trained. The loss is computed only
-# # on the final processing step.
-# #
-# # Variables with the suffix _tr are training parameters, and variables with the
-# # suffix _ge are test/generalization parameters.
-# #
-# # After around 2000-5000 training iterations the model reaches near-perfect
-# # performance on lists with between 8-16 elements.
-#
-# # Model parameters.
-# # Number of processing (message-passing) steps.
-# num_processing_steps_tr = 10
-# num_processing_steps_ge = 10
-#
-# # Data / training parameters.
-# num_training_iterations = 3000
-# batch_size_tr = 32
-# batch_size_ge = 100
-# # Number of elements in each list is sampled uniformly from this range.
-# num_elements_min_max_tr = (8, 17)
-# num_elements_min_max_ge = (16, 33)
-#
-# # Data.
-# @tf.function
-# def get_data():
-#   inputs_tr, targets_tr, sort_indices_tr, _ = create_data(
-#       batch_size_tr, num_elements_min_max_tr)
-#   inputs_tr = utils_tf.set_zero_edge_features(inputs_tr, 1)
-#   inputs_tr = utils_tf.set_zero_global_features(inputs_tr, 1)
-#   # Test/generalization.
-#   inputs_ge, targets_ge, sort_indices_ge, _ = create_data(
-#       batch_size_ge, num_elements_min_max_ge)
-#   inputs_ge = utils_tf.set_zero_edge_features(inputs_ge, 1)
-#   inputs_ge = utils_tf.set_zero_global_features(inputs_ge, 1)
-#
-#   targets_tr = utils_tf.set_zero_global_features(targets_tr, 1)
-#   targets_ge = utils_tf.set_zero_global_features(targets_ge, 1)
-#
-#   return inputs_tr, targets_tr, sort_indices_tr, inputs_ge, targets_ge, sort_indices_ge
-#
-# # Optimizer.
-# learning_rate = 1e-3
-# optimizer = snt.optimizers.Adam(learning_rate)
-#
-# model = models.EncodeProcessDecode(edge_output_size=2, node_output_size=2)
-# last_iteration = 0
-# logged_iterations = []
-# losses_tr = []
-# corrects_tr = []
-# solveds_tr = []
-# losses_ge = []
-# corrects_ge = []
-# solveds_ge = []
-#
-#
-# # Training.
-# def update_step(inputs_tr, targets_tr):
-#   with tf.GradientTape() as tape:
-#     outputs_tr = model(inputs_tr, num_processing_steps_tr)
-#     # Loss.
-#     loss_tr = create_loss_v04(targets_tr, outputs_tr)
-#     loss_tr = tf.math.reduce_sum(loss_tr) / num_processing_steps_tr
-#
-#   gradients = tape.gradient(loss_tr, model.trainable_variables)
-#   optimizer.apply(gradients, model.trainable_variables)
-#   return outputs_tr, loss_tr
-#
-#
-#
-# #@title Compiling update_step with `tf_function`  { form-width: "30%" }
-# """To recover the speed of TensorFlow 1, we need to use `tf.function` to
-# compile the update_step into a graph. However, using `tf.function` naively
-# may futher reduce performance as the number of nodes/edges in the batch can
-# change across batches, tensorflow will repeatedly trace the function multiple
-# times for each unique shape of the input tensors.
-# Instead, we obtain an explicit signature for each input argument to
-# `update_step` using `utils_tf.specs_from_graphs_tuple` that sets `None` sizes
-# for variable length axes in graph fields, preventing `tf.function` from having
-# to trace the function repeatedly."""
-#
-# # Get some example data that resembles the tensors that will be fed
-# # into update_step():
-# example_input_data, example_target_data = get_data()[:2]
-#
-# # Get the input signature for that function by obtaining the specs
-# input_signature = [
-#   utils_tf.specs_from_graphs_tuple(example_input_data),
-#   utils_tf.specs_from_graphs_tuple(example_target_data)
-# ]
-#
-# # Compile the update function using the input signature for speedy code.
-# compiled_update_step = tf.function(update_step, input_signature=input_signature)
-#
-# #@title Run training steps  { form-width: "30%" }
-#
-# # You can interrupt this cell's training loop at any time, and visualize the
-# # intermediate results by running the next cell (below). You can then resume
-# # training by simply executing this cell again.
-#
-# # Instantiate the model.
-#
-# # How much time between logging and printing the current results.
-# log_every_seconds = 20
-#
-# print("# (iteration number), T (elapsed seconds), "
-#       "Ltr (training loss), Lge (test/generalization loss), "
-#       "Ctr (training fraction nodes/edges labeled correctly), "
-#       "Str (training fraction examples solved correctly), "
-#       "Cge (test/generalization fraction nodes/edges labeled correctly), "
-#       "Sge (test/generalization fraction examples solved correctly)")
-#
-# start_time = time.time()
-# last_log_time = start_time
-# for iteration in range(last_iteration, num_training_iterations):
-#   last_iteration = iteration
-#   (inputs_tr, targets_tr, sort_indices_tr,
-#    inputs_ge, targets_ge, sort_indices_ge) = get_data()
-#
-#   outputs_tr, loss_tr = compiled_update_step(inputs_tr, targets_tr)
-#
-#   the_time = time.time()
-#   elapsed_since_last_log = the_time - last_log_time
-#   if elapsed_since_last_log > log_every_seconds:
-#     last_log_time = the_time
-#     outputs_ge = model(inputs_ge, num_processing_steps_ge)
-#     losss_ge = create_loss(targets_ge, outputs_ge)
-#     loss_ge = losss_ge[-1]
-#
-#     # Replace the globals again to prevent exceptions.
-#     outputs_tr[-1] = outputs_tr[-1].replace(globals=None)
-#     targets_tr = targets_tr.replace(globals=None)
-#
-#     correct_tr, solved_tr = compute_accuracy(
-#         utils_tf.nest_to_numpy(targets_tr),
-#         utils_tf.nest_to_numpy(outputs_tr[-1]))
-#     correct_ge, solved_ge = compute_accuracy(
-#         utils_tf.nest_to_numpy(targets_ge),
-#         utils_tf.nest_to_numpy(outputs_ge[-1]))
-#     elapsed = time.time() - start_time
-#     losses_tr.append(loss_tr.numpy())
-#     corrects_tr.append(correct_tr)
-#     solveds_tr.append(solved_tr)
-#     losses_ge.append(loss_ge.numpy())
-#     corrects_ge.append(correct_ge)
-#     solveds_ge.append(solved_ge)
-#     logged_iterations.append(iteration)
-#     print("# {:05d}, T {:.1f}, Ltr {:.4f}, Lge {:.4f}, Ctr {:.4f}, "
-#           "Str {:.4f}, Cge {:.4f}, Sge {:.4f}".format(
-#               iteration, elapsed, loss_tr.numpy(), loss_ge.numpy(),
-#               correct_tr, solved_tr, correct_ge, solved_ge))
-#
-#
