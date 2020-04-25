@@ -23,9 +23,9 @@ predict:11  14  0  0  57  5
 
 y      :11  45  0  0  0   5
 
-accuracy=2/4 # pad id=0的不计入准确召回
+accuracy=2/4 # pad id=0的不计入准确召回. predict中4个非零
 
-recall= 2/3
+recall= 2/3   # target 中3个非零
 
 ## loss accuracy recall
 
