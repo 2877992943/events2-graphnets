@@ -29,6 +29,7 @@ recall= 2/3   # target 中3个非零
 
 ## loss accuracy recall
 
+```
  step 810 loss 0.115877 acc 0.779412 recall 0.898305
  step 820 loss 0.091656 acc 0.837209 recall 0.986301
  step 830 loss 0.106382 acc 0.946808 recall 0.936842
@@ -45,4 +46,5 @@ recall= 2/3   # target 中3个非零
  step 940 loss 0.095609 acc 0.870968 recall 0.964286
  step 950 loss 0.071993 acc 0.805970 recall 0.981818
  step 960 loss 0.055524 acc 0.982758 recall 0.934426
+ ```
 
